@@ -30,7 +30,7 @@ export interface DebuggerEvent {
   type: OperationTypes
   key: string | symbol | undefined
 }
-
+// 响应调用栈
 export const activeReactiveEffectStack: ReactiveEffect[] = []
 
 export const ITERATE_KEY = Symbol('iterate')
@@ -118,14 +118,20 @@ export function track(
   type: OperationTypes,
   key?: string | symbol
 ) {
+
+  // 如果有锁，则返回
   if (!shouldTrack) {
     return
   }
+  // 取栈的最后一个
   const effect = activeReactiveEffectStack[activeReactiveEffectStack.length - 1]
+  // 如果栈不为空，则判断方法
   if (effect) {
+    // 如果方法为ITERATE，则key为Symbol('iterate')
     if (type === OperationTypes.ITERATE) {
       key = ITERATE_KEY
     }
+    // 从（Dep类）中取出目标对象
     let depsMap = targetMap.get(target)
     if (depsMap === void 0) {
       targetMap.set(target, (depsMap = new Map()))
@@ -157,12 +163,15 @@ export function trigger(
 ) {
   const depsMap = targetMap.get(target)
   if (depsMap === void 0) {
+    // 如果depsMap唯空，则没有什么被监听
     // never been tracked
     return
   }
   const effects = new Set<ReactiveEffect>()
   const computedRunners = new Set<ReactiveEffect>()
+  // addRunners 统一收集处理函数
   if (type === OperationTypes.CLEAR) {
+    // set map类型数值调用clear方法时触发所有对应key值的effect
     // collection being cleared, trigger all effects for target
     depsMap.forEach(dep => {
       addRunners(effects, computedRunners, dep)
@@ -183,6 +192,7 @@ export function trigger(
   }
   // Important: computed effects must be run first so that computed getters
   // can be invalidated before any normal effects that depend on them are run.
+  // 逐个执行
   computedRunners.forEach(run)
   effects.forEach(run)
 }

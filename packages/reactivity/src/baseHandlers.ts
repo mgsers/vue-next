@@ -4,25 +4,32 @@ import { track, trigger } from './effect'
 import { LOCKED } from './lock'
 import { isObject, hasOwn } from '@vue/shared'
 import { isRef } from './ref'
-
+// Symbol属性值
 const builtInSymbols = new Set(
   Object.getOwnPropertyNames(Symbol)
     .map(key => (Symbol as any)[key])
     .filter(value => typeof value === 'symbol')
 )
-
+// 捕获获取
 function createGetter(isReadonly: boolean) {
   return function get(target: any, key: string | symbol, receiver: any) {
+    // 原对象取值结果
     const res = Reflect.get(target, key, receiver)
+    // 如果此键为Symbol类型并且他是属于Symbol原型属性上的方法，则直接返回原对象取值结果
     if (typeof key === 'symbol' && builtInSymbols.has(key)) {
       return res
     }
+    // 如果为ref类型，则返回包装的value值
+    // 由ref内部函数进行监听
     if (isRef(res)) {
       return res.value
     }
+    // 监听
     track(target, OperationTypes.GET, key)
+    // 如果还是对象，则深层监听
     return isObject(res)
       ? isReadonly
+        // 这里需要做一个延迟处理以解决循环依赖的问题
         ? // need to lazy access readonly and reactive here to avoid
           // circular dependency
           readonly(res)
@@ -30,7 +37,7 @@ function createGetter(isReadonly: boolean) {
       : res
   }
 }
-
+// 捕获修改
 function set(
   target: any,
   key: string | symbol,
@@ -45,6 +52,7 @@ function set(
     return true
   }
   const result = Reflect.set(target, key, value, receiver)
+  // 如果target在原型连上则不触发监听
   // don't trigger if target is something up in the prototype chain of original
   if (target === toRaw(receiver)) {
     /* istanbul ignore else */
@@ -56,6 +64,8 @@ function set(
         trigger(target, OperationTypes.SET, key, extraInfo)
       }
     } else {
+      // 1，如果改变属性不在对象上，则直接触发add监听
+      // 2，如果改变属性在对象上，同时新旧值不一致，则触发set监听
       if (!hadKey) {
         trigger(target, OperationTypes.ADD, key)
       } else if (value !== oldValue) {
@@ -65,7 +75,7 @@ function set(
   }
   return result
 }
-
+// 捕获删除
 function deleteProperty(target: any, key: string | symbol): boolean {
   const hadKey = hasOwn(target, key)
   const oldValue = target[key]
@@ -80,18 +90,17 @@ function deleteProperty(target: any, key: string | symbol): boolean {
   }
   return result
 }
-
+// 捕获遍历，查询
 function has(target: any, key: string | symbol): boolean {
   const result = Reflect.has(target, key)
   track(target, OperationTypes.HAS, key)
   return result
 }
-
 function ownKeys(target: any): (string | number | symbol)[] {
   track(target, OperationTypes.ITERATE)
   return Reflect.ownKeys(target)
 }
-
+// 普通的代理处理器，代理get，set，deleteProperty，has，ownKeys
 export const mutableHandlers: ProxyHandler<any> = {
   get: createGetter(false),
   set,

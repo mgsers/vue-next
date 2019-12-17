@@ -75,7 +75,7 @@ export function createAppAPI<HostNode, HostElement>(
 ): () => App<HostElement> {
   return function createApp(): App {
     const context = createAppContext()
-
+    console.log('-wwww----')
     let isMounted = false
 
     const app: App = {

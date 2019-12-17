@@ -9,31 +9,34 @@ export interface Ref<T> {
   [refSymbol]: true
   value: UnwrapNestedRefs<T>
 }
-
+// ref类型一般用于简单数据结构数据进行数据监听管理
 export type UnwrapNestedRefs<T> = T extends Ref<any> ? T : UnwrapRef<T>
-
+// 工具 - 转化为监听对象
 const convert = (val: any): any => (isObject(val) ? reactive(val) : val)
-
+// 将数据加工为监听对象
 export function ref<T>(raw: T): Ref<T> {
   raw = convert(raw)
   const v = {
     [refSymbol]: true,
     get value() {
+      // 手动添加数据监听，并把他放在空字符串所保存的Set内储存
       track(v, OperationTypes.GET, '')
       return raw
     },
     set value(newVal) {
+      // 将新的数据进行监听，不走proxy set流程
       raw = convert(newVal)
+      // 触发
       trigger(v, OperationTypes.SET, '')
     }
   }
   return v as Ref<T>
 }
-
+// 是否为 ref 类型数据
 export function isRef(v: any): v is Ref<any> {
   return v ? v[refSymbol] === true : false
 }
-
+// 将对象转化为ref类型
 export function toRefs<T extends object>(
   object: T
 ): { [K in keyof T]: Ref<T[K]> } {
